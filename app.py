@@ -1,6 +1,15 @@
 import streamlit as st
 import yt_dlp
 import os
+import base64
+
+def get_image_base64(path):
+    if os.path.exists(path):
+        with open(path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    return ""
+
+haunter_b64 = get_image_base64("haunter.jpg")
 
 st.markdown("""
     <style>
@@ -8,8 +17,23 @@ st.markdown("""
         background-color: #000000;
     }
 
+    /* Esconde o menu superior completo do Streamlit (Stop, Deploy, 3 pontos) */
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+
     .stTextInput {
         margin-top: -30px;
+    }
+
+    .stTextInput div[data-baseweb="input"]:focus-within {
+        border-color: #FF0000 !important;
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.7) !important;
+    }
+
+    div[data-aria-hidden="true"], 
+    .stTextInput div[data-testid="InputInstructions"] {
+        display: none !important;
     }
 
     div.stButton {
@@ -46,12 +70,23 @@ st.markdown("""
         color: #FFFFFF !important;
     }
 
-    /* Caixa estilizada no padrão escuro */
     [data-testid="stVerticalBlockBorderWrapper"] {
         background-color: #0d0d0d;
         border: 1px solid #222222 !important;
         border-radius: 12px;
         padding: 15px;
+    }
+
+    [data-testid="stSpinner"] {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 5px;
+    }
+
+    [data-testid="stHeaderActionElements"], .aria-hidden, a.anchor-link {
+        display: none !important;
+        visibility: hidden !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -103,8 +138,9 @@ def download_selected_media(url, is_audio, format_id):
 left_col, center_col, right_col = st.columns([1, 4, 1])
 
 with center_col:
-    st.image("haunter.jpg")
-    st.markdown("<h1 style='text-align: center; font-size: 80px; margin-top: -80px;margin-bottom: 0px;'>ECHO</h1>", unsafe_allow_html=True)
+    if haunter_b64:
+        st.markdown(f"<div style='text-align: center;'><img src='data:image/jpeg;base64,{haunter_b64}' style='max-width: 100%; height: auto;'></div>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; font-size: 80px; margin-top: -70px;margin-bottom: 0px;'>ECHO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; margin-top: -30px; letter-spacing: 7px; color: #888888;'>Extract, Convert, Hear & Organize</p>", unsafe_allow_html=True)
 
     url_input = st.text_input(label="", placeholder="Paste your URL here...")
@@ -161,13 +197,12 @@ if st.session_state.video_info:
 
     audio_formats.sort(key=lambda x: int(x['abr'].replace(' kbps', '')), reverse=True)
 
-    # Caixa externa envolvente
     with st.container(border=True):
         col_thumb, col_content = st.columns([1, 2])
 
         with col_thumb:
             if thumbnail_url:
-                st.image(thumbnail_url, use_container_width=True)
+                st.markdown(f"<img src='{thumbnail_url}' style='width: 100%; border-radius: 8px;'>", unsafe_allow_html=True)
 
         with col_content:
             st.markdown(f"<h4 style='color: #FFFFFF; margin-top: 0px;'>{title}</h4>", unsafe_allow_html=True)
@@ -179,7 +214,7 @@ if st.session_state.video_info:
                     with col_info:
                         st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp4 ({item['res']})</p>", unsafe_allow_html=True)
                     with col_btn:
-                        sub_col_msg, sub_col_btn = st.columns([1, 1])
+                        sub_col_msg, sub_col_btn = st.columns([0.2, 1])
                         btn_key = f"btn_v_{item['id']}"
                         ready_key = f"ready_v_{item['id']}"
 
@@ -188,7 +223,7 @@ if st.session_state.video_info:
                                 btn_clicked = st.button("Download", key=btn_key)
                             if btn_clicked:
                                 with sub_col_msg:
-                                    with st.spinner("Downloading..."):
+                                    with st.spinner(""):
                                         data, file_name = download_selected_media(url_input, False, item['id'])
                                         if data:
                                             st.session_state[ready_key] = (data, file_name)
@@ -211,7 +246,7 @@ if st.session_state.video_info:
                     with col_info:
                         st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp3 ({item['abr']})</p>", unsafe_allow_html=True)
                     with col_btn:
-                        sub_col_msg, sub_col_btn = st.columns([1, 1])
+                        sub_col_msg, sub_col_btn = st.columns([0.2, 1])
                         btn_key = f"btn_a_{item['id']}"
                         ready_key = f"ready_a_{item['id']}"
 
@@ -220,7 +255,7 @@ if st.session_state.video_info:
                                 btn_clicked = st.button("Download", key=btn_key)
                             if btn_clicked:
                                 with sub_col_msg:
-                                    with st.spinner("Downloading..."):
+                                    with st.spinner(""):
                                         data, file_name = download_selected_media(url_input, True, item['id'])
                                         if data:
                                             st.session_state[ready_key] = (data, file_name)
