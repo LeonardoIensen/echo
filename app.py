@@ -3,6 +3,12 @@ import yt_dlp
 import os
 import base64
 
+st.set_page_config(
+    page_title="Echo - Media Downloader",
+    page_icon="haunter.png",
+    layout="centered"
+)
+
 def get_image_base64(path):
     if os.path.exists(path):
         with open(path, "rb") as image_file:
@@ -17,7 +23,6 @@ st.markdown("""
         background-color: #000000;
     }
 
-    /* Esconde o menu superior completo do Streamlit (Stop, Deploy, 3 pontos) */
     [data-testid="stHeader"] {
         display: none !important;
     }
