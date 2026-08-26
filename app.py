@@ -31,7 +31,7 @@ st.markdown("""
 
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
-        justify-content: center;
+        justify-content: flex-start;
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -44,6 +44,14 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background-color: #222222 !important;
         color: #FFFFFF !important;
+    }
+
+    /* Caixa estilizada no padrão escuro */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #0d0d0d;
+        border: 1px solid #222222 !important;
+        border-radius: 12px;
+        padding: 15px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -124,6 +132,8 @@ with center_col:
 if st.session_state.video_info:
     info = st.session_state.video_info
     formats = info.get('formats', [])
+    thumbnail_url = info.get('thumbnail')
+    title = info.get('title', 'Video')
 
     video_formats = []
     seen_heights = set()
@@ -151,67 +161,77 @@ if st.session_state.video_info:
 
     audio_formats.sort(key=lambda x: int(x['abr'].replace(' kbps', '')), reverse=True)
 
-    tab_mp4, tab_mp3 = st.tabs(["Video (MP4)", "Audio (MP3)"])
+    # Caixa externa envolvente
+    with st.container(border=True):
+        col_thumb, col_content = st.columns([1, 2])
 
-    with tab_mp4:
-        for item in video_formats:
-            col_info, col_btn = st.columns([2, 2])
-            with col_info:
-                st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp4 ({item['res']})</p>", unsafe_allow_html=True)
-            with col_btn:
-                sub_col_msg, sub_col_btn = st.columns([1, 1])
-                btn_key = f"btn_v_{item['id']}"
-                ready_key = f"ready_v_{item['id']}"
+        with col_thumb:
+            if thumbnail_url:
+                st.image(thumbnail_url, use_container_width=True)
 
-                if ready_key not in st.session_state:
-                    with sub_col_btn:
-                        btn_clicked = st.button("Download", key=btn_key)
-                    if btn_clicked:
-                        with sub_col_msg:
-                            with st.spinner("Downloading..."):
-                                data, file_name = download_selected_media(url_input, False, item['id'])
-                                if data:
-                                    st.session_state[ready_key] = (data, file_name)
-                                    st.rerun()
-                else:
-                    with sub_col_btn:
-                        data, file_name = st.session_state[ready_key]
-                        ext = file_name.split('.')[-1]
-                        st.download_button(
-                            label="Save File",
-                            data=data,
-                            file_name=f"{info.get('title', 'video')}_{item['res']}.{ext}",
-                            mime=f"video/{ext}",
-                            key=f"dl_v_{item['id']}"
-                        )
+        with col_content:
+            st.markdown(f"<h4 style='color: #FFFFFF; margin-top: 0px;'>{title}</h4>", unsafe_allow_html=True)
+            tab_mp4, tab_mp3 = st.tabs(["Video (MP4)", "Audio (MP3)"])
 
-    with tab_mp3:
-        for item in audio_formats:
-            col_info, col_btn = st.columns([2, 2])
-            with col_info:
-                st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp3 ({item['abr']})</p>", unsafe_allow_html=True)
-            with col_btn:
-                sub_col_msg, sub_col_btn = st.columns([1, 1])
-                btn_key = f"btn_a_{item['id']}"
-                ready_key = f"ready_a_{item['id']}"
+            with tab_mp4:
+                for item in video_formats:
+                    col_info, col_btn = st.columns([2, 2])
+                    with col_info:
+                        st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp4 ({item['res']})</p>", unsafe_allow_html=True)
+                    with col_btn:
+                        sub_col_msg, sub_col_btn = st.columns([1, 1])
+                        btn_key = f"btn_v_{item['id']}"
+                        ready_key = f"ready_v_{item['id']}"
 
-                if ready_key not in st.session_state:
-                    with sub_col_btn:
-                        btn_clicked = st.button("Download", key=btn_key)
-                    if btn_clicked:
-                        with sub_col_msg:
-                            with st.spinner("Downloading..."):
-                                data, file_name = download_selected_media(url_input, True, item['id'])
-                                if data:
-                                    st.session_state[ready_key] = (data, file_name)
-                                    st.rerun()
-                else:
-                    with sub_col_btn:
-                        data, file_name = st.session_state[ready_key]
-                        st.download_button(
-                            label="Save File",
-                            data=data,
-                            file_name=f"{info.get('title', 'audio')}_{item['abr']}.mp3",
-                            mime="audio/mpeg",
-                            key=f"dl_a_{item['id']}"
-                        )
+                        if ready_key not in st.session_state:
+                            with sub_col_btn:
+                                btn_clicked = st.button("Download", key=btn_key)
+                            if btn_clicked:
+                                with sub_col_msg:
+                                    with st.spinner("Downloading..."):
+                                        data, file_name = download_selected_media(url_input, False, item['id'])
+                                        if data:
+                                            st.session_state[ready_key] = (data, file_name)
+                                            st.rerun()
+                        else:
+                            with sub_col_btn:
+                                data, file_name = st.session_state[ready_key]
+                                ext = file_name.split('.')[-1]
+                                st.download_button(
+                                    label="Save File",
+                                    data=data,
+                                    file_name=f"{title}_{item['res']}.{ext}",
+                                    mime=f"video/{ext}",
+                                    key=f"dl_v_{item['id']}"
+                                )
+
+            with tab_mp3:
+                for item in audio_formats:
+                    col_info, col_btn = st.columns([2, 2])
+                    with col_info:
+                        st.markdown(f"<p style='margin-top: 5px; color: #FFFFFF;'>mp3 ({item['abr']})</p>", unsafe_allow_html=True)
+                    with col_btn:
+                        sub_col_msg, sub_col_btn = st.columns([1, 1])
+                        btn_key = f"btn_a_{item['id']}"
+                        ready_key = f"ready_a_{item['id']}"
+
+                        if ready_key not in st.session_state:
+                            with sub_col_btn:
+                                btn_clicked = st.button("Download", key=btn_key)
+                            if btn_clicked:
+                                with sub_col_msg:
+                                    with st.spinner("Downloading..."):
+                                        data, file_name = download_selected_media(url_input, True, item['id'])
+                                        if data:
+                                            st.session_state[ready_key] = (data, file_name)
+                                            st.rerun()
+                        else:
+                            with sub_col_btn:
+                                data, file_name = st.session_state[ready_key]
+                                st.download_button(
+                                    label="Save File",
+                                    data=data,
+                                    file_name=f"{title}_{item['abr']}.mp3",
+                                    mime="audio/mpeg",
+                                    key=f"dl_a_{item['id']}"
+                                )
