@@ -15,7 +15,7 @@ def get_image_base64(path):
             return base64.b64encode(image_file.read()).decode('utf-8')
     return ""
 
-haunter_b64 = get_image_base64("haunter.jpg")
+haunter_b64 = get_image_base64("haunter.png")
 
 st.markdown("""
     <style>
@@ -96,6 +96,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_info(url):
     ydl_opts = {'quiet': True, 'no_warnings': True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -137,6 +138,10 @@ def download_selected_media(url, is_audio, format_id):
         if file.startswith(out_name):
             with open(file, "rb") as f:
                 data = f.read()
+            try:
+                os.remove(file)
+            except Exception:
+                pass
             return data, file
     return None, None
 
@@ -144,7 +149,7 @@ left_col, center_col, right_col = st.columns([1, 4, 1])
 
 with center_col:
     if haunter_b64:
-        st.markdown(f"<div style='text-align: center;'><img src='data:image/jpeg;base64,{haunter_b64}' style='max-width: 100%; height: auto;'></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'><img src='data:image/png;base64,{haunter_b64}' style='max-width: 100%; height: auto;'></div>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; font-size: 80px; margin-top: -70px;margin-bottom: 0px;'>ECHO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; margin-top: -30px; letter-spacing: 7px; color: #888888;'>Extract, Convert, Hear & Organize</p>", unsafe_allow_html=True)
 
@@ -154,6 +159,8 @@ with center_col:
         st.session_state.is_processing = False
     if "video_info" not in st.session_state:
         st.session_state.video_info = None
+    if "error_message" not in st.session_state:
+        st.session_state.error_message = None
 
     button_text = "Processing..." if st.session_state.is_processing else "Download Now"
 
@@ -163,12 +170,17 @@ with center_col:
         if st.button(button_text):
             if url_input:
                 st.session_state.is_processing = True
+                st.session_state.error_message = None
                 try:
                     st.session_state.video_info = fetch_info(url_input)
                 except Exception:
                     st.session_state.video_info = None
+                    st.session_state.error_message = "Invalid URL or video unavailable."
                 st.session_state.is_processing = False
                 st.rerun()
+
+    if st.session_state.error_message:
+        st.markdown(f"<p style='color: #FF4B4B; text-align: center; margin-top: 10px;'>{st.session_state.error_message}</p>", unsafe_allow_html=True)
 
 if st.session_state.video_info:
     info = st.session_state.video_info
@@ -211,7 +223,7 @@ if st.session_state.video_info:
 
         with col_content:
             st.markdown(f"<h4 style='color: #FFFFFF; margin-top: 0px;'>{title}</h4>", unsafe_allow_html=True)
-            tab_mp4, tab_mp3 = st.tabs(["Video (MP4)", "Audio (MP3)"])
+            tab_mp4, tab_mp3, tab_ai = st.tabs(["Video (MP4)", "Audio (MP3)", "AI Tools"])
 
             with tab_mp4:
                 for item in video_formats:
@@ -275,3 +287,16 @@ if st.session_state.video_info:
                                     mime="audio/mpeg",
                                     key=f"dl_a_{item['id']}"
                                 )
+
+            with tab_ai:
+                col_ai_txt, col_ai_btn = st.columns([2, 2])
+                with col_ai_txt:
+                    st.markdown("<p style='margin-top: 5px; color: #FFFFFF;'>Transcribe Audio</p>", unsafe_allow_html=True)
+                with col_ai_btn:
+                    st.button("Transcribe", key="btn_ai_transcribe")
+
+                col_sum_txt, col_sum_btn = st.columns([2, 2])
+                with col_sum_txt:
+                    st.markdown("<p style='margin-top: 5px; color: #FFFFFF;'>Generate Summary</p>", unsafe_allow_html=True)
+                with col_sum_btn:
+                    st.button("Summarize", key="btn_ai_summary")
