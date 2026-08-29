@@ -74,12 +74,10 @@ st.markdown("""
         color: #000000 !important;
     }
 
-    /* Oculta completamente o file_uploader original */
     [data-testid="stFileUploader"] {
         display: none !important;
     }
 
-    /* Sobe a coluna do botão de upload via layout sem cortar o topo */
     [data-testid="column"]:has([data-testid="stFileUploader"]) {
         transform: translateY(-2px);
     }
@@ -265,12 +263,13 @@ def get_audio_text(url=None, uploaded_file=None):
 def generate_summary(text):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return "Erro: GEMINI_API_KEY não foi encontrada no seu arquivo .env."
+        return "Error: GEMINI_API_KEY was not found in your .env file."
 
     client = genai.Client(api_key=api_key)
     prompt = (
         "Analyze the language of the transcript below and generate a well-structured summary "
-        "written ENTIRELY in the SAME LANGUAGE as the transcript.\n"
+        "written ENTIRELY in the SAME LANGUAGE as the transcript. "
+        "Do not translate the transcript or the summary into another language.\n"
         "Organize it into clear, direct bullet points and highlight key takeaways like a guide or lesson.\n"
         "ABSOLUTE RULE: DO NOT write any intro, greeting, notice, or setup commentary "
         "(such as 'Here is a summary...', 'Based on the text...', 'Aqui está o resumo...'). "
@@ -292,7 +291,7 @@ def generate_summary(text):
                 continue
             return f"Erro ao gerar resumo: {str(e)}"
 
-    return "Servidores do Gemini temporariamente congestionados. Tente novamente em alguns instantes."
+    return "Gemini servers are temporarily overloaded. Please try again in a few moments."
 
 left_col, center_col, right_col = st.columns([1, 4, 1])
 
