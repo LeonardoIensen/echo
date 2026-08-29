@@ -5,6 +5,11 @@ import base64
 import whisper
 import urllib.parse
 import streamlit.components.v1 as components
+from dotenv import load_dotenv
+from google import genai
+import time
+
+load_dotenv()
 
 st.set_page_config(
     page_title="Echo - Media Downloader",
@@ -61,6 +66,7 @@ st.markdown("""
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        white-space: nowrap !important;
     }
 
     div.stButton > button:hover, div.stDownloadButton > button:hover {
@@ -90,6 +96,7 @@ st.markdown("""
         border: 1px solid #222222 !important;
         border-radius: 12px;
         padding: 15px;
+        margin-bottom: 20px;
     }
 
     [data-testid="stSpinner"] {
@@ -109,6 +116,11 @@ st.markdown("""
         color: #FFFFFF !important;
         border: 1px solid #333333 !important;
         border-radius: 8px !important;
+    }
+
+    .summary-expanded-box {
+        margin-left: -100px;
+        margin-right: -100px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -166,7 +178,7 @@ def download_selected_media(url, is_audio, format_id):
 def load_whisper_model():
     return whisper.load_model("base")
 
-def transcribe_audio(url):
+def get_audio_text(url):
     for file in os.listdir('.'):
         if file.startswith('temp_ai_'):
             try:
@@ -196,7 +208,7 @@ def transcribe_audio(url):
             break
 
     if not audio_file or os.path.getsize(audio_file) == 0:
-        return "Error: Could not extract valid audio from the provided URL."
+        return None
 
     model = load_whisper_model()
     result = model.transcribe(audio_file)
@@ -207,6 +219,36 @@ def transcribe_audio(url):
         pass
 
     return result.get("text", "").strip()
+
+def generate_summary(text):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "Error: GEMINI_API_KEY is missing in your .env file."
+
+    client = genai.Client(api_key=api_key)
+    prompt = (
+        "Faça um resumo bem estruturado e organizado em tópicos claros e diretos "
+        "com base na transcrição abaixo. Destaque os pontos mais importantes como uma aula/guia.\n"
+        "REGRA ABSOLUTA: NÃO escreva nenhuma introdução, saudação, aviso ou comentário preliminar "
+        "(como 'Aqui está um resumo...', 'Com base no seu texto...'). Comece DIRETO no título principal do resumo:\n\n"
+        f"{text}"
+    )
+    
+    models_to_try = ['gemini-3.6-flash', 'gemini-3.7-flash']
+
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e:
+            if "503" in str(e) or "UNAVAILABLE" in str(e):
+                continue
+            return f"Error generating summary: {str(e)}"
+
+    return "Servidores do Gemini temporariamente congestionados. Tente novamente em alguns instantes."
 
 left_col, center_col, right_col = st.columns([1, 4, 1])
 
@@ -226,6 +268,8 @@ with center_col:
         st.session_state.error_message = None
     if "transcript_text" not in st.session_state:
         st.session_state.transcript_text = None
+    if "summary_text" not in st.session_state:
+        st.session_state.summary_text = None
 
     button_text = "Processing..." if st.session_state.is_processing else "Download Now"
 
@@ -237,6 +281,7 @@ with center_col:
                 st.session_state.is_processing = True
                 st.session_state.error_message = None
                 st.session_state.transcript_text = None
+                st.session_state.summary_text = None
                 try:
                     st.session_state.video_info = fetch_info(url_input)
                 except Exception:
@@ -371,10 +416,10 @@ if st.session_state.video_info:
                     if btn_trans:
                         st.session_state.transcribing = True
 
-                    if st.session_state.transcribing and not st.session_state.transcript_text:
+                    if st.session_state.transcribing:
                         with sub_col_sp1:
                             with st.spinner(""):
-                                st.session_state.transcript_text = transcribe_audio(url_input)
+                                st.session_state.transcript_text = get_audio_text(url_input)
                                 st.session_state.transcribing = False
                                 st.rerun()
 
@@ -392,72 +437,115 @@ if st.session_state.video_info:
                     if st.session_state.summarizing:
                         with sub_col_sp2:
                             with st.spinner(""):
-                                pass
+                                raw_text = get_audio_text(url_input)
+                                if raw_text:
+                                    st.session_state.summary_text = generate_summary(raw_text)
+                                else:
+                                    st.session_state.summary_text = "Error: Could not extract audio for summary."
+                                st.session_state.summarizing = False
+                                st.rerun()
 
-                if st.session_state.transcript_text:
-                    st.markdown("<hr style='border: 1px solid #222222; margin-top: 15px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-                    st.text_area("Transcription Result", st.session_state.transcript_text, height=180, key="txt_result_area", label_visibility="collapsed")
+    if st.session_state.transcript_text:
+        with st.container(border=True):
+            st.markdown("<h4 style='color: #FFFFFF; margin-top: 0px;'>Transcription Result</h4>", unsafe_allow_html=True)
+            st.text_area("Transcription", st.session_state.transcript_text, height=200, key="txt_result_area", label_visibility="collapsed")
 
-                    col_dl, col_cp, col_empty = st.columns([1.1, 1.1, 1.2])
+            col_cp, col_dl, col_empty = st.columns([1, 1, 7])
 
-                    with col_dl:
-                        st.download_button(
-                            label="Download TXT",
-                            data=st.session_state.transcript_text,
-                            file_name=f"{title}_transcription.txt",
-                            mime="text/plain",
-                            key="dl_transcript_file"
-                        )
-
-                    with col_cp:
-                        encoded_text = urllib.parse.quote(st.session_state.transcript_text)
-                        components.html(f"""
-                            <style>
-                                body {{
-                                    margin: 0;
-                                    padding: 0;
-                                    background: transparent;
-                                    overflow: hidden;
-                                }}
-                                .copy-btn {{
-                                    background-color: #FFFFFF;
-                                    color: #000000;
-                                    border-radius: 50px;
-                                    border: none;
-                                    font-weight: normal !important;
-                                    width: 100%;
-                                    height: 38px;
-                                    font-size: 14px;
-                                    cursor: pointer;
-                                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    box-sizing: border-box;
-                                }}
-                                .copy-btn:hover {{
-                                    background-color: #CCCCCC;
-                                }}
-                            </style>
-                            <button class="copy-btn" id="btnCopy">Copy Text</button>
-                            <script>
-                                document.getElementById('btnCopy').addEventListener('click', function() {{
-                                    const text = decodeURIComponent('{encoded_text}');
-                                    if (navigator.clipboard && window.isSecureContext) {{
-                                        navigator.clipboard.writeText(text).then(() => {{
-                                            this.innerText = 'Copied!';
-                                            setTimeout(() => {{ this.innerText = 'Copy Text'; }}, 2000);
-                                        }});
-                                    }} else {{
-                                        const el = document.createElement('textarea');
-                                        el.value = text;
-                                        document.body.appendChild(el);
-                                        el.select();
-                                        document.execCommand('copy');
-                                        document.body.removeChild(el);
-                                        this.innerText = 'Copied!';
-                                        setTimeout(() => {{ this.innerText = 'Copy Text'; }}, 2000);
-                                    }}
+            with col_cp:
+                encoded_text = urllib.parse.quote(st.session_state.transcript_text)
+                components.html(f"""
+                    <style>
+                        body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; }}
+                        .copy-btn {{
+                            background-color: #FFFFFF; color: #000000; border-radius: 50px; border: none;
+                            font-weight: normal !important; width: 60px; height: 38px; font-size: 14px;
+                            cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                            display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+                        }}
+                        .copy-btn:hover {{ background-color: #CCCCCC; }}
+                    </style>
+                    <button class="copy-btn" id="btnCopy">Copy</button>
+                    <script>
+                        document.getElementById('btnCopy').addEventListener('click', function() {{
+                            const text = decodeURIComponent('{encoded_text}');
+                            if (navigator.clipboard && window.isSecureContext) {{
+                                navigator.clipboard.writeText(text).then(() => {{
+                                    this.innerText = 'Copied!';
+                                    setTimeout(() => {{ this.innerText = 'Copy'; }}, 2000);
                                 }});
-                            </script>
-                        """, height=38)
+                            }} else {{
+                                const el = document.createElement('textarea');
+                                el.value = text;
+                                document.body.appendChild(el);
+                                el.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(el);
+                                this.innerText = 'Copied!';
+                                setTimeout(() => {{ this.innerText = 'Copy'; }}, 2000);
+                            }}
+                        }});
+                    </script>
+                """, height=38)
+
+            with col_dl:
+                st.download_button(
+                    label="Save",
+                    data=st.session_state.transcript_text,
+                    file_name=f"{title}_transcription.txt",
+                    mime="text/plain",
+                    key="dl_transcript_file"
+                )
+
+    if st.session_state.summary_text:
+        st.markdown('<div class="summary-expanded-box">', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown(st.session_state.summary_text)
+
+            col_cp_s, col_dl_s, col_empty_s = st.columns([1, 1, 7])
+
+            with col_cp_s:
+                encoded_summary = urllib.parse.quote(st.session_state.summary_text)
+                components.html(f"""
+                    <style>
+                        body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; }}
+                        .copy-btn {{
+                            background-color: #FFFFFF; color: #000000; border-radius: 50px; border: none;
+                            font-weight: normal !important; width: 60px; height: 38px; font-size: 14px;
+                            cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                            display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+                        }}
+                        .copy-btn:hover {{ background-color: #CCCCCC; }}
+                    </style>
+                    <button class="copy-btn" id="btnCopySum">Copy</button>
+                    <script>
+                        document.getElementById('btnCopySum').addEventListener('click', function() {{
+                            const text = decodeURIComponent('{encoded_summary}');
+                            if (navigator.clipboard && window.isSecureContext) {{
+                                navigator.clipboard.writeText(text).then(() => {{
+                                    this.innerText = 'Copied!';
+                                    setTimeout(() => {{ this.innerText = 'Copy'; }}, 2000);
+                                }});
+                            }} else {{
+                                const el = document.createElement('textarea');
+                                el.value = text;
+                                document.body.appendChild(el);
+                                el.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(el);
+                                this.innerText = 'Copied!';
+                                setTimeout(() => {{ this.innerText = 'Copy'; }}, 2000);
+                            }}
+                        }});
+                    </script>
+                """, height=38)
+
+            with col_dl_s:
+                st.download_button(
+                    label="Save",
+                    data=st.session_state.summary_text,
+                    file_name=f"{title}_summary.txt",
+                    mime="text/plain",
+                    key="dl_summary_file"
+                )
+        st.markdown('</div>', unsafe_allow_html=True)
