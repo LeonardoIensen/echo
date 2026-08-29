@@ -116,6 +116,7 @@ st.markdown("""
         color: #FFFFFF !important;
         border: 1px solid #333333 !important;
         border-radius: 8px !important;
+        resize: none !important;
     }
 
     .summary-expanded-box {
@@ -502,7 +503,7 @@ if st.session_state.video_info:
         with st.container(border=True):
             st.markdown(st.session_state.summary_text)
 
-            col_cp_s, col_dl_s, col_empty_s = st.columns([1, 1, 7])
+            col_cp_s, col_dl_s, col_empty_s = st.columns([1, 1, 9])
 
             with col_cp_s:
                 encoded_summary = urllib.parse.quote(st.session_state.summary_text)
