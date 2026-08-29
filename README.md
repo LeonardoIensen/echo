@@ -2,31 +2,27 @@
 
 **Extract, Convert, Hear & Organize**
 
-ECHO is a minimalist web application built with Python and Streamlit for downloading YouTube media and processing audio with AI, featuring local transcription with Whisper and automatic summarization with Google Gemini.
+ECHO is a minimalist web application built with Python and Streamlit for downloading YouTube media, processing local video and audio files, and performing AI audio tasks—featuring local transcription with Whisper and automatic summarization with Google Gemini.
 
 ---
 
 ## 🚀 Features
 
-* **Media Downloading**
-
-  * Video extraction in MP4 with multiple resolutions.
+* **Media Downloading & Uploading**
+  * Video extraction in MP4 with multiple resolutions from YouTube.
   * Audio extraction in MP3 with multiple bitrates.
+  * Local `.mp4` and `.mp3` file support for audio processing.
 
 * **AI Transcription**
-
-  * Converts video audio to text using the OpenAI Whisper model.
+  * Converts video or audio to text using the OpenAI Whisper model.
 
 * **Smart Summarization**
-
   * Generates structured summaries in a guide/lesson format using the Google Gemini API.
 
 * **Minimalist Dark UI**
-
   * Clean, responsive, and customized interface without visual distractions.
 
 * **Handy Tools**
-
   * Quick copy buttons.
   * Download transcriptions and summaries as `.txt` files.
 
